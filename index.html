@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>廣東話文字轉語音 (Cantonese TTS)</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        textarea {
+            width: 100%;
+            height: 120px;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 16px;
+            resize: vertical;
+            box-sizing: border-box;
+            margin-bottom: 15px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        #status {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #7f8c8d;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>廣東話文字轉語音 🗣️</h1>
+        <textarea id="textInput" placeholder="請在此輸入要讀出的廣東話文字...">你好！歡迎使用網頁版廣東話文字轉語音工具。今日想聽我講啲咩呢？</textarea>
+        <br>
+        <button onclick="speakText()">播放語音</button>
+        <div id="status"></div>
+    </div>
+
+    <script>
+        let synth = window.speechSynthesis;
+        let cantoneseVoice = null;
+
+        // 載入可用的語音列表（部分瀏覽器需要異步載入）
+        function loadVoices() {
+            let voices = synth.getVoices();
+            // 尋找廣東話的語音 (zh-HK)
+            cantoneseVoice = voices.find(voice => voice.lang === 'zh-HK' || voice.lang === 'yue-HK');
+            
+            if (!cantoneseVoice) {
+                // 如果找不到明確的 zh-HK，嘗試找任何包含 yue 或 HK 的語音
+                cantoneseVoice = voices.find(voice => voice.lang.toLowerCase().includes('hk') || voice.lang.toLowerCase().includes('yue'));
+            }
+        }
+
+        loadVoices();
+        if (synth.onvoiceschanged !== undefined) {
+            synth.onvoiceschanged = loadVoices;
+        }
+
+        function speakText() {
+            if (!synth) {
+                alert('你的瀏覽器不支援語音合成功能。');
+                return;
+            }
+
+            let text = document.getElementById('textInput').value;
+            if (!text.trim()) {
+                alert('請先輸入文字！');
+                return;
+            }
+
+            // 如果正在朗讀，先停止
+            if (synth.speaking) {
+                synth.cancel();
+            }
+
+            let utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'zh-HK'; // 設定語言為香港廣東話
+
+            if (cantoneseVoice) {
+                utterance.voice = cantoneseVoice;
+            }
+
+            utterance.onstart = function() {
+                document.getElementById('status').innerText = '正在播放...';
+            };
+
+            utterance.onend = function() {
+                document.getElementById('status').innerText = '播放完成。';
+            };
+
+            utterance.onerror = function(event) {
+                document.getElementById('status').innerText = '播放出錯：' + event.error;
+            };
+
+            synth.speak(utterance);
+        }
+    </script>
+
+</body>
+</html>
