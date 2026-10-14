@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>廣東話文字轉語音 (Cantonese TTS)</title>
+    <title>廣東話文字轉語音並下載 MP3</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -35,7 +35,13 @@
             box-sizing: border-box;
             margin-bottom: 15px;
         }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
         button {
+            flex: 1;
             background-color: #3498db;
             color: white;
             border: none;
@@ -48,6 +54,20 @@
         button:hover {
             background-color: #2980b9;
         }
+        button.download-btn {
+            background-color: #2ecc71;
+        }
+        button.download-btn:hover {
+            background-color: #27ae60;
+        }
+        button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+        audio {
+            width: 100%;
+            margin-top: 15px;
+        }
         #status {
             margin-top: 15px;
             font-size: 14px;
@@ -58,71 +78,79 @@
 <body>
 
     <div class="container">
-        <h1>廣東話文字轉語音 🗣️</h1>
-        <textarea id="textInput" placeholder="請在此輸入要讀出的廣東話文字...">你好！歡迎使用網頁版廣東話文字轉語音工具。今日想聽我講啲咩呢？</textarea>
-        <br>
-        <button onclick="speakText()">播放語音</button>
+        <h1>廣東話文字轉語音 & 下載 MP3 🎵</h1>
+        <textarea id="textInput" placeholder="請在此輸入要轉換的廣東話文字...">你好！歡迎使用廣東話文字轉語音同埋下載 MP3 嘅網頁工具。</textarea>
+        
+        <div class="btn-group">
+            <button id="generateBtn" onclick="generateSpeech()">生成語音</button>
+            <button id="downloadBtn" class="download-btn" onclick="downloadMp3()" disabled>下載 MP3</button>
+        </div>
+
         <div id="status"></div>
+        <audio id="audioPlayer" controls style="display:none;"></audio>
     </div>
 
     <script>
-        let synth = window.speechSynthesis;
-        let cantoneseVoice = null;
+        let audioBlob = null;
+        let audioUrl = null;
 
-        // 載入可用的語音列表（部分瀏覽器需要異步載入）
-        function loadVoices() {
-            let voices = synth.getVoices();
-            // 尋找廣東話的語音 (zh-HK)
-            cantoneseVoice = voices.find(voice => voice.lang === 'zh-HK' || voice.lang === 'yue-HK');
-            
-            if (!cantoneseVoice) {
-                // 如果找不到明確的 zh-HK，嘗試找任何包含 yue 或 HK 的語音
-                cantoneseVoice = voices.find(voice => voice.lang.toLowerCase().includes('hk') || voice.lang.toLowerCase().includes('yue'));
-            }
-        }
+        async function generateSpeech() {
+            let text = document.getElementById('textInput').value.trim();
+            let statusDiv = document.getElementById('status');
+            let generateBtn = document.getElementById('generateBtn');
+            let downloadBtn = document.getElementById('downloadBtn');
+            let audioPlayer = document.getElementById('audioPlayer');
 
-        loadVoices();
-        if (synth.onvoiceschanged !== undefined) {
-            synth.onvoiceschanged = loadVoices;
-        }
-
-        function speakText() {
-            if (!synth) {
-                alert('你的瀏覽器不支援語音合成功能。');
-                return;
-            }
-
-            let text = document.getElementById('textInput').value;
-            if (!text.trim()) {
+            if (!text) {
                 alert('請先輸入文字！');
                 return;
             }
 
-            // 如果正在朗讀，先停止
-            if (synth.speaking) {
-                synth.cancel();
+            statusDiv.innerText = '正在轉為廣東話語音，請稍候...';
+            generateBtn.disabled = true;
+            downloadBtn.disabled = true;
+            audioPlayer.style.display = 'none';
+
+            try {
+                // 使用 Google TTS 官方公開介面（透過轉譯將文字轉成語音流）
+                // lang=zh-yue 代表廣東話
+                let encodedText = encodeURIComponent(text);
+                let ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=zh-yue&client=tw-ob`;
+
+                // 為了避開瀏覽器的 CORS 限制，透過公開的 CORS 代理來抓取音訊二進位資料
+                let proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(ttsUrl)}`;
+                
+                let response = await fetch(proxyUrl);
+                if (!response.ok) {
+                    throw new Error('網絡請求失敗，請稍後再試。');
+                }
+
+                audioBlob = await response.blob();
+                audioUrl = URL.createObjectURL(audioBlob);
+
+                // 設定播放器
+                audioPlayer.src = audioUrl;
+                audioPlayer.style.display = 'block';
+                
+                statusDiv.innerText = '生成成功！你可以點擊播放試聽，或按「下載 MP3」。';
+                downloadBtn.disabled = false;
+            } catch (error) {
+                console.error(error);
+                statusDiv.innerText = '生成失敗，可能文字過長或網絡受阻。';
+            } finally {
+                generateBtn.disabled = false;
             }
+        }
 
-            let utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'zh-HK'; // 設定語言為香港廣東話
+        function downloadMp3() {
+            if (!audioBlob) return;
 
-            if (cantoneseVoice) {
-                utterance.voice = cantoneseVoice;
-            }
-
-            utterance.onstart = function() {
-                document.getElementById('status').innerText = '正在播放...';
-            };
-
-            utterance.onend = function() {
-                document.getElementById('status').innerText = '播放完成。';
-            };
-
-            utterance.onerror = function(event) {
-                document.getElementById('status').innerText = '播放出錯：' + event.error;
-            };
-
-            synth.speak(utterance);
+            let a = document.createElement('a');
+            a.href = audioUrl;
+            a.download = 'cantonese_speech.mp3';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
         }
     </script>
 
